@@ -1,0 +1,53 @@
+# Logs.
+/logs/
+*.log
+npm-debug.log*
+
+# Docs.
+docs/**
+!docs/.gitkeep
+
+# Public.
+public/**
+!public/.gitkeep
+!public/uploads/.gitkeep
+!public/uploads/profile_pictures/.gitkeep
+!public/uploads/livestock_photos/.gitkeep
+!public/images/
+!public/files/
+
+# Visual Studio Code.
+.vscode/**
+!.vscode/launch.json.example
+!.vscode/settings.json.example
+
+# Dependencies.
+/node_modules/
+
+# Configuration.
+.env
+.env.local
+.env.stage
+.env.live
+
+# Miscellaneous.
+.DS_Store
+TODO
+TODO.txt
+
+# Core dumps.
+core_dumps/**
+!core_dumps/.gitkeep
+
+# Downloads.
+downloads/**
+!downloads/.gitkeep
+tmp/**
+!tmp/.gitkeep
+
+# Frontend.
+frontend/*
+
+# Certs.
+certs/**
+!certs/.gitkeep
