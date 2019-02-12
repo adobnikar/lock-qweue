@@ -17,18 +17,28 @@ class LockRequest extends LinkedList.Item {
 	 * @param {string[]} resources
 	 * @param {function} [resolve=null]
 	 * @param {function} [reject=null]
+	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	constructor(resources, resolve = null, reject = null) {
+	constructor(resources, resolve = null, reject = null, timeout = Infinity) {
 		super();
 		this.resources = resources;
 		this._resolve = resolve;
 		this._reject = reject;
+		this._timeout = timeout;
+		this._isFinished = false;
+		if (isInteger(this._timeout)) {
+			setTimeout(() => {
+				this.reject(`Lock request timeout of ${this._timeout} miliseconds has expired.`);
+			}, this._timeout);
+		}
 	}
 
 	/**
 	 * Resolve the lock request.
 	 */
 	resolve() {
+		if (this._isFinished) return;
+		this._isFinished = true;
 		if (isFunction(this._resolve)) {
 			try {
 				let val = this._resolve();
@@ -43,6 +53,8 @@ class LockRequest extends LinkedList.Item {
 	 * @param {string} message
 	 */
 	reject(message) {
+		if (this._isFinished) return;
+		this._isFinished = true;
 		if (isFunction(this._reject)) {
 			try {
 				let val = this._reject(new Error(message));
@@ -106,9 +118,10 @@ class LockSpace {
 	 * @param {string[]} resources
 	 * @param {function} [resolve]
 	 * @param {function} [reject]
+	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	lock(resources, resolve = null, reject = null) {
-		let request = new LockRequest(resources, resolve, reject);
+	lock(resources, resolve = null, reject = null, timeout = Infinity) {
+		let request = new LockRequest(resources, resolve, reject, timeout);
 		if (this.tryLock(request.resources)) {
 			request.resolve();
 		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {
