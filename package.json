@@ -5,7 +5,9 @@
   "main": "index.js",
   "files": [
     "index.js",
-    "lock-space.js"
+    "lock-space.js",
+    "server.js",
+    "client.js"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -35,6 +37,7 @@
   "dependencies": {
     "linked-list": "^1.0.4",
     "lodash.isfunction": "^3.0.9",
+    "lodash.isinteger": "^4.0.4",
     "socket.io": "^2.2.0"
   }
 }

@@ -21,3 +21,10 @@ Inter-process multi-resource locking queue.
 
 - [socket.io](https://socket.io/)
 - [linked-list](https://www.npmjs.com/package/linked-list)
+
+## Ideas for further development
+
+- authentication to support multiple tokens and ip whitelisting
+- optimizing the multi-resource locking queue algorithm
+- support for REDIS
+- lock request aborts

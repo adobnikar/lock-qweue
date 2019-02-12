@@ -6,15 +6,22 @@ let space = new LockSpace();
 space.lock(['a', 'b', 'c', 'd'], () => {
 	space.lock(['a'], () => {
 		console.log('a');
+		space.release(['a']);
 	});
 	space.lock(['b'], () => {
 		console.log('b');
+		space.release(['b']);
 	});
 	space.lock(['c'], () => {
 		console.log('c');
+		space.release(['c']);
 	});
 	space.lock(['d'], () => {
 		console.log('d');
+		space.release(['d']);
+	});
+	space.lock(['a', 'b', 'c', 'd'], () => {
+		console.log('Done.');
 	});
 });
 

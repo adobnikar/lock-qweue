@@ -3,6 +3,7 @@
 const LinkedList = require('linked-list');
 
 const isFunction = require('lodash.isfunction');
+const isInteger = require('lodash.isinteger');
 
 function isPromise(obj) {
 	return Promise.resolve(obj) == obj;
@@ -61,6 +62,7 @@ class LockSpace {
 	constructor(maxPending = Infinity) {
 		this._maxPending = maxPending;
 		this._queue = new LinkedList();
+		this._queueLength = 0;
 		this._lockedResources = new Set();
 	}
 
@@ -76,7 +78,10 @@ class LockSpace {
 			}
 			request = request.next;
 		}
-		for (let req of resolvedRequests) req.detach();
+		for (let req of resolvedRequests) {
+			req.detach();
+			this._queueLength--;
+		}
 		for (let req of resolvedRequests) req.resolve();
 	}
 
@@ -95,15 +100,30 @@ class LockSpace {
 		return true;
 	}
 
+	/**
+	 * Create a lock request.
+	 *
+	 * @param {string[]} resources
+	 * @param {function} [resolve]
+	 * @param {function} [reject]
+	 */
 	lock(resources, resolve = null, reject = null) {
 		let request = new LockRequest(resources, resolve, reject);
 		if (this.tryLock(request.resources)) {
 			request.resolve();
+		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {
+			request.reject(`Max pending lock requests limit of ${this._maxPending} reached.`);
 		} else {
 			this._queue.append(request);
+			this._queueLength++;
 		}
 	}
 
+	/**
+	 * Release locked resources.
+	 *
+	 * @param {string[]} resources
+	 */
 	release(resources) {
 		for (let r of resources) {
 			this._lockedResources.delete(r);
