@@ -1,28 +1,90 @@
 'use strict';
 
-class LockSpace {
-	constructor() {
-		this._queue = [];
-		this._lockedResources = new Set();
+const LinkedList = require('linked-list');
+
+const isFunction = require('lodash.isfunction');
+
+function isPromise(obj) {
+	return Promise.resolve(obj) == obj;
+}
+
+class LockRequest extends LinkedList.Item {
+	// eslint-disable-next-line lines-around-comment
+	/**
+	 * LockRequest constructor.
+	 *
+	 * @param {string[]} resources
+	 * @param {function} [resolve=null]
+	 * @param {function} [reject=null]
+	 */
+	constructor(resources, resolve = null, reject = null) {
+		super();
+		this.resources = resources;
+		this._resolve = resolve;
+		this._reject = reject;
 	}
 
-	_processQueue() {
-		let completed = [];
-		for (let i = 0; i < this._queue.length; i++) {
-			let task = this._queue[i];
-			if (this.tryLock(task.resources)) {
-				this._queue.splice(i, 1);
-				i--;
-				completed.push(task);
-			}
-		}
-		for (let task of completed) {
+	/**
+	 * Resolve the lock request.
+	 */
+	resolve() {
+		if (isFunction(this._resolve)) {
 			try {
-				task.resolve();
+				let val = this._resolve();
+				if (isPromise(val)) val.catch(() => {});
 			} catch (error) { }
 		}
 	}
 
+	/**
+	 * Reject the lock request with error message.
+	 *
+	 * @param {string} message
+	 */
+	reject(message) {
+		if (isFunction(this._reject)) {
+			try {
+				let val = this._reject(new Error(message));
+				if (isPromise(val)) val.catch(() => {});
+			} catch (error) { }
+		}
+	}
+}
+
+class LockSpace {
+	// eslint-disable-next-line lines-around-comment
+	/**
+	 * LockSpace constructor.
+	 *
+	 * @param {integer} [maxPending=Infinity] Max pending lock requests in the queue. When the limit is reached, requesting a lock will throw an error.
+	 */
+	constructor(maxPending = Infinity) {
+		this._maxPending = maxPending;
+		this._queue = new LinkedList();
+		this._lockedResources = new Set();
+	}
+
+	/**
+	 * Internal helper function that find the next lock request that can be resolved.
+	 */
+	_processQueue() {
+		let request = this._queue.head;
+		let resolvedRequests = [];
+		while (request != null) {
+			if (this.tryLock(request.resources)) {
+				resolvedRequests.push(request);
+			}
+			request = request.next;
+		}
+		for (let req of resolvedRequests) req.detach();
+		for (let req of resolvedRequests) req.resolve();
+	}
+
+	/**
+	 * Try to lock the list of resources.
+	 *
+	 * @param {string[]} resources
+	 */
 	tryLock(resources) {
 		for (let r of resources) {
 			if (this._lockedResources.has(r)) return false;
@@ -33,15 +95,13 @@ class LockSpace {
 		return true;
 	}
 
-	async lock(resources) {
-		let presolve = null;
-		let preject = null;
-		let p = new Promise((resolve, reject) => {
-			presolve = resolve;
-			preject = reject;
-		});
-		this.lockRequest(resources, presolve, preject);
-		await p;
+	lock(resources, resolve = null, reject = null) {
+		let request = new LockRequest(resources, resolve, reject);
+		if (this.tryLock(request.resources)) {
+			request.resolve();
+		} else {
+			this._queue.append(request);
+		}
 	}
 
 	release(resources) {
@@ -50,19 +110,6 @@ class LockSpace {
 		}
 		this._processQueue();
 	}
-
-	lockRequest(resources, resolve, reject) {
-		this._queue.push({
-			resources: resources,
-			resolve: resolve,
-			reject: reject,
-		});
-		this._processQueue();
-	}
 }
 
-/**
- * Export class.
- * @type {Object}
- */
 module.exports = LockSpace;
