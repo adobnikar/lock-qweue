@@ -20,6 +20,7 @@ Inter-process multi-resource locking queue.
 ## Node.js libraries used
 
 - [socket.io](https://socket.io/)
+- [socket.io-client](https://www.npmjs.com/package/socket.io-client)
 - [linked-list](https://www.npmjs.com/package/linked-list)
 
 ## Ideas for further development

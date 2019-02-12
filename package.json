@@ -7,7 +7,8 @@
     "index.js",
     "lock-space.js",
     "server.js",
-    "client.js"
+    "client.js",
+    "joi-ext.js"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -36,8 +37,13 @@
   "homepage": "https://github.com/adobnikar/lock-qweue#readme",
   "dependencies": {
     "linked-list": "^1.0.4",
+    "lodash.find": "^4.6.0",
+    "lodash.foreach": "^4.5.0",
     "lodash.isfunction": "^3.0.9",
     "lodash.isinteger": "^4.0.4",
-    "socket.io": "^2.2.0"
+    "lodash.isstring": "^4.0.1",
+    "socket.io": "^2.2.0",
+    "socket.io-client": "^2.2.0",
+    "unklogger": "^1.0.1"
   }
 }
