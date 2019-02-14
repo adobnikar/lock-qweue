@@ -12,24 +12,26 @@ class LockRequest extends LinkedList.Item {
 	 * LockRequest constructor.
 	 *
 	 * @param {LockSpace} queue Lock requests queue.
-	 * @param {string} clientId
 	 * @param {string[]} resources
-	 * @param {function} [resolve=null]
-	 * @param {function} [reject=null]
-	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
+	 * @param {object} [options]
+	 * @param {string} [options.requestIdPrefix=null]
+	 * @param {function} [options.resolve=null]
+	 * @param {function} [options.reject=null]
+	 * @param {integer} [options.timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	constructor(queue, clientId, resources, resolve = null, reject = null, timeout = Infinity) {
+	constructor(queue, resources, options = {}) {
 		super();
+		if (options == null) options = {};
 
 		// Generate unique request id.
 		this._queue = queue;
-		this._id = this._queue._generateUniqueRequestId(clientId);
+		this._id = this._queue._generateUniqueRequestId(options.requestIdPrefix);
 		this._queue._requestIds.set(this._id, this);
 
 		this.resources = resources;
-		this._resolve = resolve;
-		this._reject = reject;
-		this._timeout = timeout;
+		this._resolve = options.resolve;
+		this._reject = options.reject;
+		this._timeout = options.timeout;
 		this._timeoutId = null;
 		this._isFinished = false;
 		if (isInteger(this._timeout)) {
@@ -149,15 +151,16 @@ class LockSpace {
 	/**
 	 * Create a lock request.
 	 *
-	 * @param {string} clientId
 	 * @param {string[]} resources
-	 * @param {function} [resolve]
-	 * @param {function} [reject]
-	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
+	 * @param {object} [options]
+	 * @param {string} [options.requestIdPrefix=null]
+	 * @param {function} [options.resolve=null]
+	 * @param {function} [options.reject=null]
+	 * @param {integer} [options.timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	lock(clientId, resources, resolve = null, reject = null, timeout = Infinity) {
-		// Create lock request.
-		let request = new LockRequest(this, clientId, resources, resolve, reject, timeout);
+	lock(resources, options = {}) {
+		if (options == null) options = {};
+		let request = new LockRequest(this, resources, options);
 		if (this.tryLock(request.resources)) {
 			request.resolve();
 		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {

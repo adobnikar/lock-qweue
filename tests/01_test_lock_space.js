@@ -5,27 +5,27 @@ const debug = require('./debug');
 let space = new LockSpace();
 debug.debugLockSpace(space);
 
-space.lock(null, ['a', 'b', 'c', 'd'], () => {
-	space.lock(null, ['a'], () => {
+space.lock(['a', 'b', 'c', 'd'], { resolve: () => {
+	space.lock(['a'], { resolve: () => {
 		console.log('a');
 		space.release(['a']);
-	});
-	space.lock(null, ['b'], () => {
+	} });
+	space.lock(['b'], { resolve: () => {
 		console.log('b');
 		space.release(['b']);
-	});
-	space.lock(null, ['c'], () => {
+	} });
+	space.lock(['c'], { resolve: () => {
 		console.log('c');
 		space.release(['c']);
-	});
-	space.lock(null, ['d'], () => {
+	} });
+	space.lock(['d'], { resolve: () => {
 		console.log('d');
 		space.release(['d']);
-	});
-	space.lock(null, ['a', 'b', 'c', 'd'], () => {
+	} });
+	space.lock(['a', 'b', 'c', 'd'], { resolve: () => {
 		console.log('Done.');
-	});
-});
+	} });
+} });
 
 setTimeout(() => space.release(['a']), 4000);
 setTimeout(() => space.release(['b']), 3000);
