@@ -73,11 +73,13 @@ class Client {
 
 		this._requests = new DoubleMap();
 		this._newRequests = new Set();
+		this._unsettledEmits = new Set();
 
 		this._io = new SocketIOClient(this._options.host);
 		this._io.on('lockResponse', this._onLockResponse.bind(this));
 		this._io.on('connect', this._onConnect.bind(this));
 		this._io.on('disconnect', this._onDisconnect.bind(this));
+		this._io.on('authenticated', this._onAuthenticated.bind(this));
 
 		// this._io.on('connect_error', this._evt('connect_error').bind(this));
 		// this._io.on('connect_timeout', this._evt('connect_timeout').bind(this));
@@ -102,6 +104,12 @@ class Client {
 	// 	console.log('reconnect_attempt');
 	// }
 
+	// eslint-disable-next-line class-methods-use-this
+	_onAuthenticated() {
+		//console.log('onAuthenticated');
+		// TODO: enable request from here on
+	}
+
 	_onConnect() {
 		if (isString(this._options.token)) {
 			this._io.emit('authentication', {
@@ -113,8 +121,20 @@ class Client {
 
 	_onDisconnect() {
 		console.log('disconnected');
-		// TODO: kill all pending request promises
-		// TODO: kill all new and pending requests
+
+		// Reject all unsettled lock requests.
+		if (this._requests.size > 0) {
+			let reqs = this._requests.toArray();
+			this._requests = new DoubleMap();
+			for (let req of reqs) req.value.reject('Disconnected from lock queue server.');
+		}
+
+		// Reject all unsettled emits.
+		if (this._unsettledEmits.size > 0) {
+			let emits = Array.from(this._unsettledEmits);
+			this._unsettledEmits = new Set();
+			for (let emit of emits) emit.reject(new Error('Disconnected from lock queue server.'));
+		}
 	}
 
 	// eslint-disable-next-line class-methods-use-this
@@ -135,15 +155,15 @@ class Client {
 	// eslint-disable-next-line class-methods-use-this
 	_createResponseHandler() {
 		// TODO: maybe need to kill all pending requests on disconnect
-		let { p, resolve, reject } = this._createPromise();
+		let emit = this._createPromise();
+		this._unsettledEmits.add(emit);
 		let handler = (data) => {
-			// eslint-disable-next-line callback-return
-			if (data.success) resolve(data);
-			// eslint-disable-next-line callback-return
-			else reject(new Error(data.error));
+			this._unsettledEmits.delete(emit);
+			if (data.success) emit.resolve(data);
+			else emit.reject(new Error(data.error));
 		};
 		return {
-			p: p,
+			p: emit.p,
 			handler: handler,
 		};
 	}

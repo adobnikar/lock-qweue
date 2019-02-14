@@ -8,5 +8,5 @@ let server = new Server({
 	token: 'secret',
 });
 
-let space = server._spaces._getSpace(null);
+let space = server._spaces._getSpace('a');
 debug.debugLockSpace(space);

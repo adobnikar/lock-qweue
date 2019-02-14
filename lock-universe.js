@@ -51,12 +51,12 @@ class Request {
 	resolve() {
 		this._client.lockResources(this._namespace, this._resources);
 		this.close();
-		this._sendResolve();
+		setTimeout(() => this._sendResolve(), 0);
 	}
 
 	reject(message) {
 		this.close();
-		this._sendReject(message);
+		setTimeout(() => this._sendReject(message), 0);
 	}
 
 	close() {
@@ -93,9 +93,9 @@ class Client {
 	}
 
 	addRequest(request, requestId) {
-		if (request._isClosed) return;
 		request._id = requestId;
-		this._requests.set(request.namespace, requestId, request);
+		if (request._isClosed) return;
+		this._requests.set(request._namespace, requestId, request);
 	}
 
 	closeRequest(namespace, requestId) {
@@ -147,7 +147,9 @@ class LockUniverse {
 
 	_scheduleBigCrunch(namespace) {
 		if (this._bigCrunchMap.has(namespace)) return;
-		let tid = setTimeout(() => this._spaces.delete(namespace), 10000);
+		let tid = setTimeout(() => {
+			this._spaces.delete(namespace);
+		}, 10000);
 		this._bigCrunchMap.set(namespace, tid);
 	}
 
@@ -164,7 +166,8 @@ class LockUniverse {
 		if (lockAcquired) {
 			let client = this._getClient(clientId);
 			client.lockResources(namespace, resources);
-		} else this._collectGarbage(namespace, space);
+		}
+		this._collectGarbage(namespace, space);
 		return lockAcquired;
 	}
 
@@ -189,6 +192,7 @@ class LockUniverse {
 			timeout: timeout,
 		});
 		client.addRequest(request, requestId);
+		this._collectGarbage(namespace, space);
 		return requestId;
 	}
 
@@ -205,6 +209,7 @@ class LockUniverse {
 		if (!exists) return false;
 		let space = this._getSpace(namespace);
 		let requestExisted = space.abort(id);
+		this._collectGarbage(namespace, space);
 		return requestExisted;
 	}
 

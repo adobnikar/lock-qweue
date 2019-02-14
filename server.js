@@ -126,6 +126,12 @@ class Server {
 		ack({ requestExisted: requestExisted });
 	}
 
+	_setAuthenticated(socket) {
+		socket.auth = true;
+		each(this._io.nsps, (nsp) => this._restoreConnection(nsp, socket));
+		socket.emit('authenticated', true);
+	}
+
 	_onConnection(socket) {
 		socket.auth = false;
 		socket._isDead = false;
@@ -139,15 +145,13 @@ class Server {
 
 			if (isString(this._options.token)) {
 				if (data.token === this._options.token) {
-					socket.auth = true;
-					each(this._io.nsps, (nsp) => this._restoreConnection(nsp, socket));
-					socket.emit('authenticated', true);
+					this._setAuthenticated(socket);
 					Log.success(`Client "${socket.id}" - "${socket.name}" authenticated successfully.`);
 				} else {
 					Log.error(`Client "${socket.id}" - "${socket.name}" is unauthorized.`);
 					socket.emit('unauthorized', { message: 'Invalid token.' });
 				}
-			} else socket.auth = true;
+			} else this._setAuthenticated(socket);
 		});
 
 		socket.on('tryLock', (data, ack) => this._mw(socket, data, ack, this._tryLock.bind(this)));
