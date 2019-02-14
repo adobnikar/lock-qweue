@@ -1,7 +1,9 @@
 'use strict';
 
 const LockSpace = require('../lock-space');
+const debug = require('./debug');
 let space = new LockSpace();
+debug.debugLockSpace(space);
 
 space.lock(['a', 'b', 'c', 'd'], () => {
 	space.lock(['a'], () => {
