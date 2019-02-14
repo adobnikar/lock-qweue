@@ -1,0 +1,256 @@
+'use strict';
+
+const LockSpace = require('./lock-space');
+const DoubleSet = require('./double-set');
+
+const isFunction = require('lodash.isfunction');
+const groupBy = require('lodash.groupby');
+
+function isPromise(obj) {
+	return Promise.resolve(obj) == obj;
+}
+
+class Request {
+	// eslint-disable-next-line lines-around-comment
+	/**
+	 * Request constructor.
+	 *
+	 * @param {string[]} resources
+	 * @param {function} [resolve]
+	 * @param {function} [reject]
+	 */
+	constructor(client, namespace, resources, resolve, reject) {
+		this._id = null;
+		this._client = client;
+		this._namespace = namespace;
+		this._resources = resources;
+		this._resolve = resolve;
+		this._reject = reject;
+		this._isClosed = false;
+	}
+
+	async _sendResolve() {
+		try {
+			if (isFunction(this._resolve)) {
+				let val = this._resolve();
+				while (isPromise(val)) val = await val;
+			}
+		} catch (error) { }
+	}
+
+	async _sendReject(message) {
+		try {
+			if (isFunction(this._reject)) {
+				let val = this._reject(message);
+				while (isPromise(val)) val = await val;
+			}
+		} catch (error) { }
+	}
+
+	resolve() {
+		this.lockResources(this._namespace, this._resources);
+		this.close();
+		this._sendResolve();
+	}
+
+	reject(message) {
+		this.close();
+		this._sendReject(message);
+	}
+
+	close() {
+		if (this._isClosed) return;
+		this._isClosed = true;
+		this._client.closeRequest(this._id, this._namespace);
+	}
+}
+
+class Client {
+	// eslint-disable-next-line lines-around-comment
+	/**
+	 * Client constructor.
+	 *
+	 * @param {string} id Unique client id.
+	 */
+	constructor(id) {
+		this._id = id;
+		this._lockedResources = new DoubleSet();
+		this._requests = new Map();
+	}
+
+	lockResources(namespace, resources) {
+		for (let r of resources) this._lockedResources.add(namespace, r);
+	}
+
+	filterResources(namespace, resources) {
+		let res = resources.filter(r => this._lockedResources.has(namespace, r));
+		return res;
+	}
+
+	unlockResources(namespace, resources) {
+		for (let r of resources) this._lockedResources.delete(namespace, r);
+	}
+
+	addRequest(request, requestId) {
+		if (request._isClosed) return;
+		request._id = requestId;
+		this._requests.set(requestId, request);
+	}
+
+	closeRequest(requestId, namespace) {
+		if (requestId == null) return false;
+		if (!this._requests.has(requestId)) return false;
+		let request = this._requests.get(requestId);
+		if (request._namespace !== namespace) return false;
+		this._requests.delete(requestId);
+		return true;
+	}
+}
+
+class LockUniverse {
+	// eslint-disable-next-line lines-around-comment
+	/**
+	 * LockUniverse constructor.
+	 *
+	 * @param {integer} [maxPending=Infinity] Max pending lock requests per namespace.
+	 */
+	constructor(maxPending = Infinity) {
+		this._maxPending = maxPending;
+		this._spaces = new Map();
+		this._clients = new Map();
+		this._bigCrunchMap = new Map();
+	}
+
+	_getSpace(namespace) {
+		if (!this._spaces.has(namespace)) {
+			this._spaces.set(namespace, new LockSpace(this._maxPending));
+		}
+		return this._spaces.get(namespace);
+	}
+
+	_getClient(clientId) {
+		if (!this._clients.has(clientId)) {
+			this._clients.set(clientId, new Client(clientId));
+		}
+		return this._clients.get(clientId);
+	}
+
+	_collectGarbage(namespace, space) {
+		if (space.isEmpty()) this._scheduleBigCrunch(namespace);
+		else this._preventBigCrunch(namespace);
+	}
+
+	_preventBigCrunch(namespace) {
+		if (!this._bigCrunchMap.has(namespace)) return;
+		clearTimeout(this._bigCrunchMap.get(namespace));
+		this._bigCrunchMap.delete(namespace);
+	}
+
+	_scheduleBigCrunch(namespace) {
+		if (this._bigCrunchMap.has(namespace)) return;
+		let tid = setTimeout(() => this._spaces.delete(namespace), 10000);
+		this._bigCrunchMap.set(namespace, tid);
+	}
+
+	/**
+	 * Try to lock the list of resources.
+	 *
+	 * @param {string} clientId
+	 * @param {string} namespace
+	 * @param {string[]} resources
+	 */
+	tryLock(clientId, namespace, resources) {
+		let space = this._getSpace(namespace);
+		let lockAcquired = space.tryLock(resources);
+		if (lockAcquired) {
+			let client = this._getClient(clientId);
+			client.lockResources(namespace, resources);
+		} else this._collectGarbage(namespace, space);
+		return lockAcquired;
+	}
+
+	/**
+	 * Create a lock request.
+	 *
+	 * @param {string} clientId
+	 * @param {string} namespace
+	 * @param {string[]} resources
+	 * @param {function} [resolve]
+	 * @param {function} [reject]
+	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
+	 */
+	lock(clientId, namespace, resources, resolve = null, reject = null, timeout = Infinity) {
+		let space = this._getSpace(namespace);
+		let client = this._getClient(clientId);
+		let request = new Request(client, namespace, resources, resolve, reject);
+		let requestId = space.lock(resources, {
+			requestIdPrefix: `${clientId}_`,
+			resolve: request.resolve,
+			reject: request.reject,
+			timeout: timeout,
+		});
+		client.addRequest(request, requestId);
+		return requestId;
+	}
+
+	/**
+	 * Abort lock request.
+	 *
+	 * @param {string} clientId
+	 * @param {string} namespace
+	 * @param {string} id Lock request id.
+	 */
+	abort(clientId, namespace, id) {
+		let client = this._getClient(clientId);
+		let exists = client.closeRequest(id, namespace);
+		if (!exists) return false;
+		let space = this._getSpace(namespace);
+		let requestExisted = space.abort(id);
+		return requestExisted;
+	}
+
+	/**
+	 * Release locked resources.
+	 *
+	 * @param {string} clientId
+	 * @param {string} namespace
+	 * @param {string[]} resources
+	 */
+	release(clientId, namespace, resources) {
+		let client = this._getClient(clientId);
+		resources = client.filterResources(namespace, resources);
+		let space = this._getSpace(namespace);
+		let tryingToUnlockUnlockedResource = !space.release(resources);
+		client.unlockResources(namespace, resources);
+		this._collectGarbage(namespace, space);
+		return tryingToUnlockUnlockedResource;
+	}
+
+	/**
+	 * Release all client requests and locks.
+	 *
+	 * @param {string} clientId
+	 */
+	releaseClient(clientId) {
+		if (!this._clients.has(clientId)) return;
+		let client = this._getClient(clientId);
+
+		// Abort all pending requests.
+		for (let [requestId, request] of client._requests) {
+			this.abort(clientId, request._namespace, requestId);
+		}
+
+		// Release all resources.
+		let rlocks = client._lockedResources.toArray();
+		rlocks = groupBy(rlocks, 'key1');
+		for (let namespace in rlocks) {
+			if (!rlocks.hasOwnProperty(namespace)) continue;
+			let resources = rlocks[namespace].map(r => r.key2);
+			this.release(clientId, namespace, resources);
+		}
+
+		this._clients.delete(clientId);
+	}
+}
+
+module.exports = LockUniverse;

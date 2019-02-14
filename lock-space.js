@@ -198,6 +198,14 @@ class LockSpace {
 		setTimeout(() => this._processQueue(), 0);
 		return isOK;
 	}
+
+	isEmpty() {
+		if (this._queueLength.length > 0) return false;
+		if (this._queue.head != null) return false;
+		if (this._requestIds.size > 0) return false;
+		if (this._lockedResources.size > 0) return false;
+		return true;
+	}
 }
 
 module.exports = LockSpace;
