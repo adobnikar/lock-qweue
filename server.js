@@ -75,7 +75,7 @@ class Server {
 	_tryLock(socket, data, ack) {
 		let body = Joi.validate(data, Joi.object().keys({
 			namespace: Joi.string().allow(null).default(null),
-			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+			resources: Joi.array().items(Joi.string()).single().min(1).required(),
 		}));
 		let lockAcquired = this._spaces.tryLock(socket.id, body.namespace, body.resources);
 		ack({ lockAcquired: lockAcquired });
@@ -84,7 +84,7 @@ class Server {
 	_lock(socket, data, ack) {
 		let body = Joi.validate(data, Joi.object().keys({
 			namespace: Joi.string().allow(null).default(null),
-			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+			resources: Joi.array().items(Joi.string()).single().min(1).required(),
 			timeout: Joi.number().integer().min(0).allow(null).default(null),
 		}));
 
@@ -111,16 +111,16 @@ class Server {
 	_release(socket, data, ack) {
 		let body = Joi.validate(data, Joi.object().keys({
 			namespace: Joi.string().allow(null).default(null),
-			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+			resources: Joi.array().items(Joi.string()).single().min(1).required(),
 		}));
-		let tryingToUnlockUnlockedResource = this._spaces.release(socket.id, body.namespace, body.resources);
-		ack({ tryingToUnlockUnlockedResource: tryingToUnlockUnlockedResource });
+		let allReleasedResourcesWereLocked = this._spaces.release(socket.id, body.namespace, body.resources);
+		ack({ allReleasedResourcesWereLocked: allReleasedResourcesWereLocked });
 	}
 
 	_abort(socket, data, ack) {
 		let body = Joi.validate(data, Joi.object().keys({
 			namespace: Joi.string().allow(null).default(null),
-			requestId: Joi.string().rquired(),
+			requestId: Joi.string().required(),
 		}));
 		let requestExisted = this._spaces.abort(socket.id, body.namespace, body.requestId);
 		ack({ requestExisted: requestExisted });
@@ -150,10 +150,10 @@ class Server {
 			} else socket.auth = true;
 		});
 
-		socket.on('tryLock', (data, ack) => this._mw(socket, data, ack, this._tryLock));
-		socket.on('lock', (data, ack) => this._mw(socket, data, ack, this._lock));
-		socket.on('release', (data, ack) => this._mw(socket, data, ack, this._release));
-		socket.on('abort', (data, ack) => this._mw(socket, data, ack, this._abort));
+		socket.on('tryLock', (data, ack) => this._mw(socket, data, ack, this._tryLock.bind(this)));
+		socket.on('lock', (data, ack) => this._mw(socket, data, ack, this._lock.bind(this)));
+		socket.on('release', (data, ack) => this._mw(socket, data, ack, this._release.bind(this)));
+		socket.on('abort', (data, ack) => this._mw(socket, data, ack, this._abort.bind(this)));
 
 		// Auth timeout.
 		setTimeout(() => {

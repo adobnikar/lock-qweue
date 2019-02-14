@@ -49,7 +49,7 @@ class Request {
 	}
 
 	resolve() {
-		this.lockResources(this._namespace, this._resources);
+		this._client.lockResources(this._namespace, this._resources);
 		this.close();
 		this._sendResolve();
 	}
@@ -184,8 +184,8 @@ class LockUniverse {
 		let request = new Request(client, namespace, resources, resolve, reject);
 		let requestId = space.lock(resources, {
 			requestIdPrefix: `${clientId}_`,
-			resolve: request.resolve,
-			reject: request.reject,
+			resolve: request.resolve.bind(request),
+			reject: request.reject.bind(request),
 			timeout: timeout,
 		});
 		client.addRequest(request, requestId);
@@ -219,10 +219,10 @@ class LockUniverse {
 		let client = this._getClient(clientId);
 		resources = client.filterResources(namespace, resources);
 		let space = this._getSpace(namespace);
-		let tryingToUnlockUnlockedResource = !space.release(resources);
+		let allReleasedResourcesWereLocked = space.release(resources);
 		client.unlockResources(namespace, resources);
 		this._collectGarbage(namespace, space);
-		return tryingToUnlockUnlockedResource;
+		return allReleasedResourcesWereLocked;
 	}
 
 	/**

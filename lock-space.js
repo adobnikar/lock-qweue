@@ -149,6 +149,8 @@ class LockSpace {
 	 * Try to lock the list of resources.
 	 *
 	 * @param {string[]} resources
+	 *
+	 * @returns {boolean} Lock acquired.
 	 */
 	tryLock(resources) {
 		for (let r of resources) {
@@ -169,6 +171,8 @@ class LockSpace {
 	 * @param {function} [options.resolve=null]
 	 * @param {function} [options.reject=null]
 	 * @param {integer} [options.timeout=Infinity] Lock request timeout in miliseconds.
+	 *
+	 * @returns {string} Request id.
 	 */
 	lock(resources, options = {}) {
 		if (options == null) options = {};
@@ -187,6 +191,8 @@ class LockSpace {
 	 * Abort lock request.
 	 *
 	 * @param {string} id Lock request id.
+	 *
+	 * @returns {boolean} Request id found.
 	 */
 	abort(id) {
 		let request = this._requestIds.get(id);
@@ -199,18 +205,25 @@ class LockSpace {
 	 * Release locked resources.
 	 *
 	 * @param {string[]} resources
+	 *
+	 * @returns {boolean} All released resources were locked.
 	 */
 	release(resources) {
 		resources = Array.from(new Set(resources));
-		let isOK = true;
+		let allReleasedResourcesWereLocked = true;
 		for (let r of resources) {
 			if (this._lockedResources.has(r)) this._lockedResources.delete(r);
-			else isOK = false;
+			else allReleasedResourcesWereLocked = false;
 		}
 		setTimeout(() => this._processQueue(), 0);
-		return isOK;
+		return allReleasedResourcesWereLocked;
 	}
 
+	/**
+	 * Check if the lock space is empty.
+	 *
+	 * @returns {boolean} True if the requests queue is empty and there are no locked resources.
+	 */
 	isEmpty() {
 		if (this._queueLength.length > 0) return false;
 		if (this._queue.head != null) return false;
