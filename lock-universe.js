@@ -2,6 +2,7 @@
 
 const LockSpace = require('./lock-space');
 const DoubleSet = require('./double-set');
+const DoubleMap = require('./double-map');
 
 const isFunction = require('lodash.isfunction');
 const groupBy = require('lodash.groupby');
@@ -61,7 +62,7 @@ class Request {
 	close() {
 		if (this._isClosed) return;
 		this._isClosed = true;
-		this._client.closeRequest(this._id, this._namespace);
+		this._client.closeRequest(this._namespace, this._id);
 	}
 }
 
@@ -75,7 +76,7 @@ class Client {
 	constructor(id) {
 		this._id = id;
 		this._lockedResources = new DoubleSet();
-		this._requests = new Map();
+		this._requests = new DoubleMap();
 	}
 
 	lockResources(namespace, resources) {
@@ -94,15 +95,13 @@ class Client {
 	addRequest(request, requestId) {
 		if (request._isClosed) return;
 		request._id = requestId;
-		this._requests.set(requestId, request);
+		this._requests.set(request.namespace, requestId, request);
 	}
 
-	closeRequest(requestId, namespace) {
+	closeRequest(namespace, requestId) {
 		if (requestId == null) return false;
-		if (!this._requests.has(requestId)) return false;
-		let request = this._requests.get(requestId);
-		if (request._namespace !== namespace) return false;
-		this._requests.delete(requestId);
+		if (!this._requests.has(namespace, requestId)) return false;
+		this._requests.delete(namespace, requestId);
 		return true;
 	}
 }
@@ -202,7 +201,7 @@ class LockUniverse {
 	 */
 	abort(clientId, namespace, id) {
 		let client = this._getClient(clientId);
-		let exists = client.closeRequest(id, namespace);
+		let exists = client.closeRequest(namespace, id);
 		if (!exists) return false;
 		let space = this._getSpace(namespace);
 		let requestExisted = space.abort(id);
@@ -236,8 +235,9 @@ class LockUniverse {
 		let client = this._getClient(clientId);
 
 		// Abort all pending requests.
-		for (let [requestId, request] of client._requests) {
-			this.abort(clientId, request._namespace, requestId);
+		let prequests = client._requests.toArray();
+		for (let pr of prequests) {
+			this.abort(clientId, pr.key1, pr.key2);
 		}
 
 		// Release all resources.

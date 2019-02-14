@@ -3,9 +3,9 @@
 const Client = require('../client');
 
 let client = new Client({
-	host: 'http://localhost:3005',
-	// name: 'client 1',
-	token: 'abcd2',
+	host: 'http://localhost:3000',
+	name: 'client1',
+	token: 'secret',
 });
 
 setInterval(() => {}, 5000);

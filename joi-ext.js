@@ -17,7 +17,6 @@ const JoiStringConvertible = function(joi) {
 };
 
 const Joi = require('joi').extend([ JoiStringConvertible ]);
-const extend = require('lodash/extend');
 
 const settings = {
 	passwordMinLength: 6,
@@ -34,7 +33,7 @@ Joi.validate = (data, schema, options) => {
 		stripUnknown: true,
 	};
 
-	options = extend(baseOptions, options);
+	options = Object.assign(baseOptions, options);
 	let {
 		error,
 		value,

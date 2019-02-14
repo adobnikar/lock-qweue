@@ -10,7 +10,8 @@
     "client.js",
     "joi-ext.js",
     "lock-universe.js",
-    "double-set.js"
+    "double-set.js",
+    "double-map.js"
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -38,6 +39,7 @@
   },
   "homepage": "https://github.com/adobnikar/lock-qweue#readme",
   "dependencies": {
+    "joi": "^14.3.1",
     "linked-list": "^1.0.4",
     "lodash.find": "^4.6.0",
     "lodash.foreach": "^4.5.0",
