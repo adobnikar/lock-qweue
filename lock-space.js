@@ -4,23 +4,28 @@ const LinkedList = require('linked-list');
 
 const isFunction = require('lodash.isfunction');
 const isInteger = require('lodash.isinteger');
-
-function isPromise(obj) {
-	return Promise.resolve(obj) == obj;
-}
+const isString = require('lodash.isstring');
 
 class LockRequest extends LinkedList.Item {
 	// eslint-disable-next-line lines-around-comment
 	/**
 	 * LockRequest constructor.
 	 *
+	 * @param {LockSpace} queue Lock requests queue.
+	 * @param {string} clientId
 	 * @param {string[]} resources
 	 * @param {function} [resolve=null]
 	 * @param {function} [reject=null]
 	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	constructor(resources, resolve = null, reject = null, timeout = Infinity) {
+	constructor(queue, clientId, resources, resolve = null, reject = null, timeout = Infinity) {
 		super();
+
+		// Generate unique request id.
+		this._queue = queue;
+		this._id = this._queue._generateUniqueRequestId(clientId);
+		this._queue._requestIds.set(this._id, this);
+
 		this.resources = resources;
 		this._resolve = resolve;
 		this._reject = reject;
@@ -34,32 +39,12 @@ class LockRequest extends LinkedList.Item {
 		}
 	}
 
-	async _sendResolve() {
-		try {
-			if (isFunction(this._resolve)) {
-				let val = this._resolve();
-				while (isPromise(val)) val = await val;
-			}
-		} catch (error) { }
-	}
-
-	async _sendReject(message) {
-		try {
-			if (isFunction(this._reject)) {
-				let val = this._reject(new Error(message));
-				while (isPromise(val)) val = await val;
-			}
-		} catch (error) { }
-	}
-
 	/**
 	 * Resolve the lock request.
 	 */
 	resolve() {
-		if (this._isFinished) return;
-		this._isFinished = true;
-		this._removeFromQueue();
-		this._sendResolve();
+		this.close();
+		if (isFunction(this._resolve)) this._resolve();
 	}
 
 	/**
@@ -68,15 +53,19 @@ class LockRequest extends LinkedList.Item {
 	 * @param {string} message
 	 */
 	reject(message) {
-		if (this._isFinished) return;
-		this._isFinished = true;
-		this._removeFromQueue();
-		this._sendReject(message);
+		this.close();
+		if (isFunction(this._reject)) this._reject(message);
 	}
 
-	_removeFromQueue() {
+	/**
+	 * Mark request as finished an remove it from the queue.
+	 */
+	close() {
+		if (this._isFinished) return;
+		this._isFinished = true;
 		if (this._timeoutId != null) clearTimeout(this._timeoutId);
-		if (this._queue != null) this._queue._removeFromQueue(this);
+		this._queue._removeFromQueue(this);
+		this._queue._releaseRequestId(this);
 	}
 }
 
@@ -92,19 +81,40 @@ class LockSpace {
 		this._queue = new LinkedList();
 		this._queueLength = 0;
 		this._lockedResources = new Set();
+		this._requestIds = new Map();
+	}
+
+	// eslint-disable-next-line class-methods-use-this
+	_makeid(prefix = null) {
+		let text = '';
+		if (isString(prefix)) text = prefix;
+		let possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+		for (let i = 0; i < 30; i++) {
+			text += possible.charAt(Math.floor(Math.random() * possible.length));
+		}
+		return text;
+	}
+
+	_generateUniqueRequestId(prefix = null) {
+		let id = this._makeid(prefix);
+		while (this._requestIds.has(id)) id = this._makeid(prefix);
+		return id;
+	}
+
+	_releaseRequestId(request) {
+		let r = this._requestIds.get(request._id);
+		if (r === request) this._requestIds.delete(request._id);
 	}
 
 	_addToQueue(request) {
 		if (request.list === this._queue) return;
 		this._queue.append(request);
-		request._queue = this;
 		this._queueLength++;
 	}
 
 	_removeFromQueue(request) {
 		if (request.list !== this._queue) return;
 		request.detach();
-		request._queue = null;
 		this._queueLength--;
 	}
 
@@ -139,13 +149,15 @@ class LockSpace {
 	/**
 	 * Create a lock request.
 	 *
+	 * @param {string} clientId
 	 * @param {string[]} resources
 	 * @param {function} [resolve]
 	 * @param {function} [reject]
 	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	lock(resources, resolve = null, reject = null, timeout = Infinity) {
-		let request = new LockRequest(resources, resolve, reject, timeout);
+	lock(clientId, resources, resolve = null, reject = null, timeout = Infinity) {
+		// Create lock request.
+		let request = new LockRequest(this, clientId, resources, resolve, reject, timeout);
 		if (this.tryLock(request.resources)) {
 			request.resolve();
 		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {
@@ -153,6 +165,19 @@ class LockSpace {
 		} else {
 			this._addToQueue(request);
 		}
+		return request._id;
+	}
+
+	/**
+	 * Abort lock request.
+	 *
+	 * @param {string} id Lock request id.
+	 */
+	abort(id) {
+		let request = this._requestIds.get(id);
+		if (request == null) return false;
+		request.close();
+		return true;
 	}
 
 	/**
