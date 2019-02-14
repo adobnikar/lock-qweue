@@ -75,42 +75,48 @@ class Client {
 		this._newRequests = new Set();
 		this._unsettledEmits = new Set();
 
+		this._connectionPromise = null;
+		this._connectionStatus = 'connect';
+
 		this._io = new SocketIOClient(this._options.host);
 		this._io.on('lockResponse', this._onLockResponse.bind(this));
 		this._io.on('connect', this._onConnect.bind(this));
 		this._io.on('disconnect', this._onDisconnect.bind(this));
 		this._io.on('authenticated', this._onAuthenticated.bind(this));
-
-		// this._io.on('connect_error', this._evt('connect_error').bind(this));
-		// this._io.on('connect_timeout', this._evt('connect_timeout').bind(this));
-		// this._io.on('reconnect', this._evt('reconnect').bind(this));
-		// this._io.on('reconnect_failed', this._evt('reconnect_failed').bind(this));
-		// this._io.on('reconnect_error', this._evt('reconnect_error').bind(this));
-		// this._io.on('event', this.onEvent.bind(this));
+		this._io.on('connect_error', this._onConnectError.bind(this));
+		this._io.on('unauthorized', this._onUnauthorized.bind(this));
 	}
 
-	// _evt(name) {
-	// 	let fn = function(arg) {
-	// 		console.log(name, arg);
-	// 	};
-	// 	return fn;
-	// }
+	_getStatusErrorMsg() {
+		if (this._connectionStatus === 'unauthorized') return 'Lock queue client unauthorized.';
+		if (this._connectionStatus === 'disconnected') return 'Lock queue server unreachable.';
+		return null;
+	}
 
-	// onEvent(data) {
-	// 	console.log('event', data);
-	// }
-
-	// onReconnectAttempt() {
-	// 	console.log('reconnect_attempt');
-	// }
+	_setConnectionStatus(status) {
+		this._connectionStatus = status;
+		if (this._connectionStatus === 'connect') return;
+		if (this._connectionPromise != null) {
+			if (this._connectionStatus === 'ok') {
+				this._connectionPromise.resolve();
+			} else {
+				this._connectionPromise.reject(new Error(this._getStatusErrorMsg()));
+			}
+			this._connectionPromise = null;
+		}
+	}
 
 	// eslint-disable-next-line class-methods-use-this
 	_onAuthenticated() {
-		//console.log('onAuthenticated');
-		// TODO: enable request from here on
+		this._setConnectionStatus('ok');
+	}
+
+	_onUnauthorized() {
+		this._setConnectionStatus('unauthorized');
 	}
 
 	_onConnect() {
+		this._setConnectionStatus('connect');
 		if (isString(this._options.token)) {
 			this._io.emit('authentication', {
 				name: this._options.name,
@@ -119,8 +125,13 @@ class Client {
 		}
 	}
 
-	_onDisconnect() {
-		console.log('disconnected');
+	_onConnectError() {
+		this._setConnectionStatus('disconnected');
+	}
+
+	_onDisconnect(reason) {
+		if (reason === 'unauthorized') this._setConnectionStatus('unauthorized');
+		else this._setConnectionStatus('disconnected');
 
 		// Reject all unsettled lock requests.
 		if (this._requests.size > 0) {
@@ -154,7 +165,6 @@ class Client {
 
 	// eslint-disable-next-line class-methods-use-this
 	_createResponseHandler() {
-		// TODO: maybe need to kill all pending requests on disconnect
 		let emit = this._createPromise();
 		this._unsettledEmits.add(emit);
 		let handler = (data) => {
@@ -191,10 +201,14 @@ class Client {
 		else request.reject(data.message);
 	}
 
-	_checkConnection() {
-		if (!this._io.connected) {
-			throw new Error('Lock queue server unreachable.');
-		}
+	async _checkConnection() {
+		if (this._connectionStatus === 'ok') return;
+		else if (this._connectionStatus === 'connect') {
+			if (this._connectionPromise == null) {
+				this._connectionPromise = this._createPromise();
+			}
+			await this._connectionPromise.p;
+		} else throw new Error(this._getStatusErrorMsg());
 	}
 
 	_pickNamespace(options) {
@@ -218,7 +232,7 @@ class Client {
 	 * @returns {Request} Request object.
 	 */
 	async lockRequest(resources, options = {}) {
-		this._checkConnection();
+		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 		let { p, handler } = this._createResponseHandler();
 		let request = new Request(this, namespace, options.resolve, options.reject, p);
@@ -241,7 +255,7 @@ class Client {
 	 * @returns {boolean} Lock acquired.
 	 */
 	async tryLock(resources, options = {}) {
-		this._checkConnection();
+		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 		let { p, handler } = this._createResponseHandler();
 		this._io.emit('tryLock', {
@@ -262,7 +276,7 @@ class Client {
 	 * @returns {boolean} All released resources were locked.
 	 */
 	async release(resources, options = {}) {
-		this._checkConnection();
+		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 		let { p, handler } = this._createResponseHandler();
 		this._io.emit('release', {
@@ -283,7 +297,7 @@ class Client {
 	 * @returns {boolean} Request id was found.
 	 */
 	async abort(requestId, options = {}) {
-		this._checkConnection();
+		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 		let { p, handler } = this._createResponseHandler();
 		this._io.emit('abort', {
@@ -318,7 +332,7 @@ class Client {
 	 */
 	async lock(resources, fn, options = {}) {
 		if (!isFunction(fn)) throw new Error('Parameter "fn" is not a function.');
-		this._checkConnection();
+		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 
 		let { p, resolve, reject } = this._createPromise();

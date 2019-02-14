@@ -6,7 +6,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 let client = new Client({
 	host: 'http://localhost:3000',
-	namespace: 'a',
+	// namespace: 'a',
 	name: 'client1',
 	token: 'secret',
 });
@@ -19,22 +19,22 @@ setTimeout(async () => {
 		client.lock(['a', 'b'], async () => {
 			console.log('begin lock 1');
 			await sleep(2000);
-		}).then(() => console.log('end lock 1'));
+		}).then(() => console.log('end lock 1')).catch((error) => console.error(error));
 		client.lock(['b', 'c'], async () => {
 			console.log('begin lock 2');
 			await sleep(2000);
-		}).then(() => console.log('end lock 2'));
+		}).then(() => console.log('end lock 2')).catch((error) => console.error(error));
 		client.lock(['a'], async () => {
 			console.log('begin lock 3');
 			await sleep(2000);
-		}).then(() => console.log('end lock 3'));
+		}).then(() => console.log('end lock 3')).catch((error) => console.error(error));
 		await client.lock(['a', 'b', 'c'], async () => {
 			console.log('begin lock 4');
 			await sleep(2000);
-		}).then(() => console.log('end lock 4'));
+		}).then(() => console.log('end lock 4')).catch((error) => console.error(error));
 	} catch (error) {
 		console.error(error);
 	}
 	console.log('Done.');
-}, 1000);
+}, 0);
 
