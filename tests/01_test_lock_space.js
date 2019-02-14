@@ -2,7 +2,7 @@
 
 const LockSpace = require('../lock-space');
 const debug = require('./debug');
-let space = new LockSpace();
+let space = LockSpace.global();
 debug.debugLockSpace(space);
 
 space.lock(['a', 'b', 'c', 'd'], { resolve: () => {

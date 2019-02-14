@@ -6,6 +6,8 @@ const isFunction = require('lodash.isfunction');
 const isInteger = require('lodash.isinteger');
 const isString = require('lodash.isstring');
 
+let GLOBAL_SPACE = null;
+
 class LockRequest extends LinkedList.Item {
 	// eslint-disable-next-line lines-around-comment
 	/**
@@ -84,6 +86,16 @@ class LockSpace {
 		this._queueLength = 0;
 		this._lockedResources = new Set();
 		this._requestIds = new Map();
+	}
+
+	/**
+	 * Get the global lock space.
+	 *
+	 * @param {integer} [maxPending=Infinity] Max pending lock requests in the queue. When the limit is reached, requesting a lock will throw an error.
+	 */
+	static global(maxPending = Infinity) {
+		if (GLOBAL_SPACE == null) GLOBAL_SPACE = new LockSpace(maxPending);
+		return GLOBAL_SPACE;
 	}
 
 	// eslint-disable-next-line class-methods-use-this
