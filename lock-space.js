@@ -25,12 +25,31 @@ class LockRequest extends LinkedList.Item {
 		this._resolve = resolve;
 		this._reject = reject;
 		this._timeout = timeout;
+		this._timeoutId = null;
 		this._isFinished = false;
 		if (isInteger(this._timeout)) {
-			setTimeout(() => {
+			this._timeoutId = setTimeout(() => {
 				this.reject(`Lock request timeout of ${this._timeout} miliseconds has expired.`);
 			}, this._timeout);
 		}
+	}
+
+	async _sendResolve() {
+		try {
+			if (isFunction(this._resolve)) {
+				let val = this._resolve();
+				while (isPromise(val)) val = await val;
+			}
+		} catch (error) { }
+	}
+
+	async _sendReject(message) {
+		try {
+			if (isFunction(this._reject)) {
+				let val = this._reject(new Error(message));
+				while (isPromise(val)) val = await val;
+			}
+		} catch (error) { }
 	}
 
 	/**
@@ -39,12 +58,8 @@ class LockRequest extends LinkedList.Item {
 	resolve() {
 		if (this._isFinished) return;
 		this._isFinished = true;
-		if (isFunction(this._resolve)) {
-			try {
-				let val = this._resolve();
-				if (isPromise(val)) val.catch(() => {});
-			} catch (error) { }
-		}
+		this._removeFromQueue();
+		this._sendResolve();
 	}
 
 	/**
@@ -55,12 +70,13 @@ class LockRequest extends LinkedList.Item {
 	reject(message) {
 		if (this._isFinished) return;
 		this._isFinished = true;
-		if (isFunction(this._reject)) {
-			try {
-				let val = this._reject(new Error(message));
-				if (isPromise(val)) val.catch(() => {});
-			} catch (error) { }
-		}
+		this._removeFromQueue();
+		this._sendReject(message);
+	}
+
+	_removeFromQueue() {
+		if (this._timeoutId != null) clearTimeout(this._timeoutId);
+		if (this._queue != null) this._queue._removeFromQueue(this);
 	}
 }
 
@@ -78,6 +94,20 @@ class LockSpace {
 		this._lockedResources = new Set();
 	}
 
+	_addToQueue(request) {
+		if (request.list === this._queue) return;
+		this._queue.append(request);
+		request._queue = this;
+		this._queueLength++;
+	}
+
+	_removeFromQueue(request) {
+		if (request.list !== this._queue) return;
+		request.detach();
+		request._queue = null;
+		this._queueLength--;
+	}
+
 	/**
 	 * Internal helper function that find the next lock request that can be resolved.
 	 */
@@ -85,14 +115,8 @@ class LockSpace {
 		let request = this._queue.head;
 		let resolvedRequests = [];
 		while (request != null) {
-			if (this.tryLock(request.resources)) {
-				resolvedRequests.push(request);
-			}
+			if (this.tryLock(request.resources)) resolvedRequests.push(request);
 			request = request.next;
-		}
-		for (let req of resolvedRequests) {
-			req.detach();
-			this._queueLength--;
 		}
 		for (let req of resolvedRequests) req.resolve();
 	}
@@ -127,8 +151,7 @@ class LockSpace {
 		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {
 			request.reject(`Max pending lock requests limit of ${this._maxPending} reached.`);
 		} else {
-			this._queue.append(request);
-			this._queueLength++;
+			this._addToQueue(request);
 		}
 	}
 
@@ -138,10 +161,14 @@ class LockSpace {
 	 * @param {string[]} resources
 	 */
 	release(resources) {
+		resources = Array.from(new Set(resources));
+		let isOK = true;
 		for (let r of resources) {
-			this._lockedResources.delete(r);
+			if (this._lockedResources.has(r)) this._lockedResources.delete(r);
+			else isOK = false;
 		}
-		this._processQueue();
+		setTimeout(() => this._processQueue(), 0);
+		return isOK;
 	}
 }
 
