@@ -43,7 +43,6 @@
     "linked-list": "^1.0.4",
     "lodash.find": "^4.6.0",
     "lodash.foreach": "^4.5.0",
-    "lodash.groupby": "^4.6.0",
     "lodash.isfunction": "^3.0.9",
     "lodash.isinteger": "^4.0.4",
     "lodash.isstring": "^4.0.1",

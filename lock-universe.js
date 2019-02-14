@@ -5,7 +5,6 @@ const DoubleSet = require('./double-set');
 const DoubleMap = require('./double-map');
 
 const isFunction = require('lodash.isfunction');
-const groupBy = require('lodash.groupby');
 
 function isPromise(obj) {
 	return Promise.resolve(obj) == obj;
@@ -247,10 +246,12 @@ class LockUniverse {
 
 		// Release all resources.
 		let rlocks = client._lockedResources.toArray();
-		rlocks = groupBy(rlocks, 'key1');
-		for (let namespace in rlocks) {
-			if (!rlocks.hasOwnProperty(namespace)) continue;
-			let resources = rlocks[namespace].map(r => r.key2);
+		let rlocksMap = new Map();
+		for (let rlock of rlocks) {
+			if (!rlocksMap.has(rlock.key1)) rlocksMap.set(rlock.key1, []);
+			rlocksMap.get(rlock.key1).push(rlock.key2);
+		}
+		for (let [namespace, resources] of rlocksMap) {
 			this.release(clientId, namespace, resources);
 		}
 
