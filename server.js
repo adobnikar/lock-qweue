@@ -1,14 +1,12 @@
 'use strict';
 
 // TODO:
-// - namespace support
-// - authentication support
 // - maybe localhost restriction support
 
 const Log = require('unklogger');
 const Joi = require('./joi-ext');
 const SocketIOServer = require('socket.io');
-const LockSpace = require('./lock-space');
+const LockUniverse = require('./lock-universe');
 
 const isInteger = require('lodash.isinteger');
 const isString = require('lodash.isstring');
@@ -31,7 +29,7 @@ class Server {
 		if (!isInteger(options.maxPending)) options.maxPending = Infinity;
 		this._options = options;
 
-		this._spaces = new Map();
+		this._spaces = new LockUniverse(this._options.maxPending);
 
 		this._io = new SocketIOServer();
 		each(this._io.nsps, this._forbidConnections); // Auth middleware.
@@ -57,15 +55,80 @@ class Server {
 		}
 	}
 
-	_getSpace(namespace) {
-		if (!this._spaces.has(namespace)) {
-			this._spaces.set(namespace, new LockSpace(this._options.maxPending));
+	// eslint-disable-next-line class-methods-use-this
+	_mw(socket, data, ack, fn) {
+		if (!socket.auth) return;
+		if (socket._isDead) return;
+		try {
+			fn(socket, data, (ackData) => {
+				ackData.success = true;
+				ack(ackData);
+			});
+		} catch (error) {
+			ack({
+				success: false,
+				error: error.message,
+			});
 		}
-		return this._spaces.get(namespace);
+	}
+
+	_tryLock(socket, data, ack) {
+		let body = Joi.validate(data, Joi.object().keys({
+			namespace: Joi.string().allow(null).default(null),
+			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+		}));
+		let lockAcquired = this._spaces.tryLock(socket.id, body.namespace, body.resources);
+		ack({ lockAcquired: lockAcquired });
+	}
+
+	_lock(socket, data, ack) {
+		let body = Joi.validate(data, Joi.object().keys({
+			namespace: Joi.string().allow(null).default(null),
+			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+			timeout: Joi.number().integer().min(0).allow(null).default(null),
+		}));
+
+		let requestId = this._spaces.lock(socket.id, body.namespace, body.resources, () => {
+			if (socket._isDead) return;
+			socket.emit('lockResponse', {
+				success: true,
+				namespace: body.namespace,
+				requestId: requestId,
+			});
+		}, (message) => {
+			if (socket._isDead) return;
+			socket.emit('lockResponse', {
+				success: false,
+				namespace: body.namespace,
+				requestId: requestId,
+				message: message,
+			});
+		}, body.timeout);
+
+		ack({ requestId: requestId });
+	}
+
+	_release(socket, data, ack) {
+		let body = Joi.validate(data, Joi.object().keys({
+			namespace: Joi.string().allow(null).default(null),
+			resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
+		}));
+		let tryingToUnlockUnlockedResource = this._spaces.release(socket.id, body.namespace, body.resources);
+		ack({ tryingToUnlockUnlockedResource: tryingToUnlockUnlockedResource });
+	}
+
+	_abort(socket, data, ack) {
+		let body = Joi.validate(data, Joi.object().keys({
+			namespace: Joi.string().allow(null).default(null),
+			requestId: Joi.string().rquired(),
+		}));
+		let requestExisted = this._spaces.abort(socket.id, body.namespace, body.requestId);
+		ack({ requestExisted: requestExisted });
 	}
 
 	_onConnection(socket) {
 		socket.auth = false;
+		socket._isDead = false;
 		Log.info(`Client with id "${socket.id}" connected from "${socket.handshake.address}".`);
 
 		socket.on('authentication', (data) => {
@@ -87,79 +150,10 @@ class Server {
 			} else socket.auth = true;
 		});
 
-		socket.on('tryLock', (data, ack) => {
-			if (!socket.auth) return;
-			try {
-				let body = Joi.validate(data, Joi.object().keys({
-					namespace: Joi.string().allow(null).default(null),
-					resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
-				}));
-
-				let space = this._getSpace(body.namespace);
-				let response = space.tryLock(body.resources);
-
-				ack({
-					success: true,
-					response: response,
-				});
-			} catch (error) {
-				ack({
-					success: false,
-					error: error.message,
-				});
-			}
-		});
-
-		socket.on('lock', (data, ack) => {
-			if (!socket.auth) return;
-			try {
-				let body = Joi.validate(data, Joi.object().keys({
-					namespace: Joi.string().allow(null).default(null),
-					resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
-				}));
-
-				let space = this._getSpace(body.namespace);
-				let response = space.lock(body.resources);
-
-				// TODO: generate a unique id and callback when acquired !!!
-
-				ack({
-					success: true,
-					response: response,
-				});
-			} catch (error) {
-				ack({
-					success: false,
-					error: error.message,
-				});
-			}
-		});
-
-		socket.on('release', (data, ack) => {
-			if (!socket.auth) return;
-			try {
-				let body = Joi.validate(data, Joi.object().keys({
-					namespace: Joi.string().allow(null).default(null),
-					resources: Joi.array().items(Joi.string()).single().min(1).rquired(),
-				}));
-
-				if (!this._spaces.has(body.namespace)) {
-					this._spaces.set(body.namespace, new LockSpace(this._options.maxPending));
-				}
-				let space = this._spaces.get(body.namespace);
-				let response = space.release(body.resources);
-
-				ack({
-					success: true,
-					response: response,
-				});
-			} catch (error) {
-				ack({
-					success: false,
-					error: error.message,
-				});
-			}
-		});
+		socket.on('tryLock', (data, ack) => this._mw(socket, data, ack, this._tryLock));
+		socket.on('lock', (data, ack) => this._mw(socket, data, ack, this._lock));
+		socket.on('release', (data, ack) => this._mw(socket, data, ack, this._release));
+		socket.on('abort', (data, ack) => this._mw(socket, data, ack, this._abort));
 
 		// Auth timeout.
 		setTimeout(() => {
@@ -171,6 +165,8 @@ class Server {
 		}, 1000);
 
 		socket.on('disconnect', (reason) => {
+			socket._isDead = true;
+			this._spaces.releaseClient(socket.id);
 			Log.info(`Client with id ${socket.id} disconnected.`);
 		});
 	}
