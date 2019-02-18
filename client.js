@@ -21,9 +21,19 @@ class Request {
 		this._id = null;
 		this._client._newRequests.add(this);
 		this._lrp = this._client._lockRequestResponseHandler(this, p);
+
+		this.promise = new Promise((res, rej) => {
+			this._presolve = res;
+			this._preject = rej;
+		});
+		this.promise.then(() => {});
+		this.promise.catch(() => {});
 	}
 
 	async _sendResolve() {
+		try {
+			this._presolve();
+		} catch (error) { }
 		try {
 			if (isFunction(this._resolve)) {
 				let val = this._resolve();
@@ -33,6 +43,9 @@ class Request {
 	}
 
 	async _sendReject(message) {
+		try {
+			this._preject(new Error(message));
+		} catch (error) { }
 		try {
 			if (isFunction(this._reject)) {
 				let val = this._reject(new Error(message));
@@ -44,13 +57,13 @@ class Request {
 	resolve() {
 		if (this._isFinished) return;
 		this._isFinished = true;
-		this._sendResolve();
+		setTimeout(() => this._sendResolve(), 0);
 	}
 
 	reject(message) {
 		if (this._isFinished) return;
 		this._isFinished = true;
-		this._sendReject(message);
+		setTimeout(() => this._sendReject(message), 0);
 	}
 }
 
