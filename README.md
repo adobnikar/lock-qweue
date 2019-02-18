@@ -24,10 +24,10 @@ npm i lock-qweue
 
 ### Functions
 
-- constructor(options) -> returns Server instance
+- constructor(options) → returns Server instance
 - listen(port)
 - close()
-- io() -> returns underlying Socket.io server
+- io() → returns underlying Socket.io server
 
 ### Examples
 
@@ -55,13 +55,13 @@ server.listen(3000);
 
 ### Functions
 
-- constructor(options) -> returns Client instance
-- async lockRequest(resources, options) -> returns Request instance
-- async tryLock(resources, options) -> boolean (lock acquired flag)
-- async release(resources, options) -> boolean (all released resources were locked flag)
-- async abort(requestId, options) -> boolean (request id was found flag)
+- constructor(options) → returns Client instance
+- async lockRequest(resources, options) → returns Request instance
+- async tryLock(resources, options) → boolean (lock acquired flag)
+- async release(resources, options) → boolean (all released resources were locked flag)
+- async abort(requestId, options) → boolean (request id was found flag)
 - async lock(resources, fn, options)
-- io() -> returns underlying Socket.io client
+- io() → returns underlying Socket.io client
 
 ### Examples
 
@@ -127,13 +127,13 @@ You can use this class if you want to lock resources locally (single-process).
 
 ### Functions
 
-- default(maxPending) -> returns the default LockSpace instance
-- tryLock(resources) -> boolean (lock acquired flag)
-- lock(resources, options) -> string request id
+- default(maxPending) → returns the default LockSpace instance
+- tryLock(resources) → boolean (lock acquired flag)
+- lock(resources, options) → string request id
 - async lockAsync(resources, fn, timeout)
-- abort(requestId) -> boolean (request id was found flag)
-- release(resources) -> boolean (all released resources were locked flag)
-- isEmpty() -> boolean (true if the requests queue is empty and there are no locked resources)
+- abort(requestId) → boolean (request id was found flag)
+- release(resources) → boolean (all released resources were locked flag)
+- isEmpty() → boolean (true if the requests queue is empty and there are no locked resources)
 
 ### Examples
 
