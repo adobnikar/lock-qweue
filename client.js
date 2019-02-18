@@ -22,10 +22,12 @@ class Request {
 		this._client._newRequests.add(this);
 		this._lrp = this._client._lockRequestResponseHandler(this, p);
 
-		this.promise = new Promise((res, rej) => {
-			this._presolve = res;
-			this._preject = rej;
-		});
+		let promiseObj = this._client._createPromise();
+		this.promise = promiseObj.p;
+		this._presolve = promiseObj.resolve;
+		this._preject = promiseObj.reject;
+
+		// Prevent unhandled promises.
 		this.promise.then(() => {});
 		this.promise.catch(() => {});
 	}
@@ -348,14 +350,11 @@ class Client {
 		await this._checkConnection();
 		let namespace = this._pickNamespace(options);
 
-		let { p, resolve, reject } = this._createPromise();
-		await this.lockRequest(resources, {
+		let request = await this.lockRequest(resources, {
 			namespace: namespace,
-			resolve: resolve,
-			reject: reject,
 			timeout: options.timeout,
 		});
-		await p;
+		await request.promise;
 
 		let error = await this._executeFn(fn);
 
