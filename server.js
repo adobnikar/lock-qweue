@@ -3,7 +3,6 @@
 // TODO:
 // - maybe localhost restriction support
 
-const Log = require('unklogger');
 const Joi = require('./joi-ext');
 const SocketIOServer = require('socket.io');
 const LockUniverse = require('./lock-universe');
@@ -37,14 +36,25 @@ class Server {
 		if (isInteger(this._options.port)) this.listen(this._options.port);
 	}
 
+	// eslint-disable-next-line class-methods-use-this
+	_log(type, message) {
+		console.log(message);
+	}
+
 	listen(port) {
 		if (!isInteger(port)) throw new Error('Lock queue server port must be an integer.');
 		this._options.port = port;
 		this._io.listen(this._options.port);
+		this._log('info', `Lock qweue server listening on port ${this._options.port}.`)
 	}
 
 	close() {
 		this._io.close();
+		this._log('info', 'Lock qweue server closed.');
+	}
+
+	io() {
+		return this._io;
 	}
 
 	// eslint-disable-next-line class-methods-use-this
@@ -145,20 +155,20 @@ class Server {
 	_onConnection(socket) {
 		socket.auth = false;
 		socket._isDead = false;
-		Log.info(`Client with id "${socket.id}" connected from "${socket.handshake.address}".`);
+		console.log(`Client with id "${socket.id}" connected from "${socket.handshake.address}".`);
 
 		socket.on('authentication', (data) => {
 			if (isString(data.name)) {
 				socket.name = data.name;
-				Log.info(`Client with id "${socket.id}" registered as "${socket.name}".`);
+				this._log('info', `Client with id "${socket.id}" registered as "${socket.name}".`);
 			} else socket.name = 'no name';
 
 			if (isString(this._options.token)) {
 				if (data.token === this._options.token) {
 					this._setAuthenticated(socket);
-					Log.success(`Client "${socket.id}" - "${socket.name}" authenticated successfully.`);
+					this._log('success', `Client "${socket.id}" - "${socket.name}" authenticated successfully.`);
 				} else {
-					Log.error(`Client "${socket.id}" - "${socket.name}" is unauthorized.`);
+					this._log('error', `Client "${socket.id}" - "${socket.name}" is unauthorized.`);
 					socket.emit('unauthorized', { message: 'Invalid token.' });
 				}
 			} else this._setAuthenticated(socket);
@@ -173,7 +183,7 @@ class Server {
 		setTimeout(() => {
 			// If the socket didn't authenticate after connection, disconnect it.
 			if (!socket.auth) {
-				Log.info(`Disconnecting unauthorized socket ${socket.id}`);
+				this._log('info', `Disconnecting unauthorized socket ${socket.id}`);
 				socket.disconnect('unauthorized');
 			}
 		}, 1000);
@@ -181,7 +191,7 @@ class Server {
 		socket.on('disconnect', (reason) => {
 			socket._isDead = true;
 			this._spaces.releaseClient(socket.id);
-			Log.info(`Client with id ${socket.id} disconnected.`);
+			this._log('info', `Client with id ${socket.id} disconnected.`);
 		});
 	}
 }

@@ -5,8 +5,7 @@ const Server = require('../server');
 
 let server = new Server({
 	port: 3000,
-	token: 'secret', // (optional)
-	namespace: 'name', // (optional)
+	token: 'secret', // (optional) Max pending lock requests per namespace.
 	maxPending: 100, // (optional)
 });
 

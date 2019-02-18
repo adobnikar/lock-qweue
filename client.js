@@ -67,6 +67,10 @@ class Request {
 		this._isFinished = true;
 		setTimeout(() => this._sendReject(message), 0);
 	}
+
+	async abort() {
+		this._client.abort(this._id);
+	}
 }
 
 class Client {
@@ -258,6 +262,10 @@ class Client {
 		}, handler);
 		await request._lrp; // Wait for the request to get the id.
 		return request;
+	}
+
+	io() {
+		return this._io;
 	}
 
 	/**
