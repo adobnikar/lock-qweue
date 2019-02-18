@@ -19,13 +19,13 @@ class Server {
 	 * Lock queue server constructor.
 	 *
 	 * @param {object} options
-	 * @param {integer} options.port
+	 * @param {integer} [options.port]
 	 * @param {integer} [options.maxPending=Infinity] Max pending lock requests per namespace.
 	 * @param {string} [options.token] Authentication token.
 	 */
 	constructor(options = {}) {
 		if (options == null) options = {};
-		if (!isInteger(options.port)) throw new Error('Lock queue server port must be an integer.');
+		if ((options.port != null) && !isInteger(options.port)) throw new Error('Lock queue server port must be an integer.');
 		if (!isInteger(options.maxPending)) options.maxPending = Infinity;
 		this._options = options;
 
@@ -34,7 +34,17 @@ class Server {
 		this._io = new SocketIOServer();
 		each(this._io.nsps, this._forbidConnections); // Auth middleware.
 		this._io.on('connection', this._onConnection.bind(this));
+		if (isInteger(this._options.port)) this.listen(this._options.port);
+	}
+
+	listen(port) {
+		if (!isInteger(port)) throw new Error('Lock queue server port must be an integer.');
+		this._options.port = port;
 		this._io.listen(this._options.port);
+	}
+
+	close() {
+		this._io.close();
 	}
 
 	// eslint-disable-next-line class-methods-use-this
