@@ -38,10 +38,10 @@ class Request {
 		} catch (error) { }
 	}
 
-	async _sendReject(message) {
+	async _sendReject(error) {
 		try {
 			if (isFunction(this._reject)) {
-				let val = this._reject(message);
+				let val = this._reject(error);
 				while (isPromise(val)) val = await val;
 			}
 		} catch (error) { }
@@ -53,9 +53,9 @@ class Request {
 		setTimeout(() => this._sendResolve(), 0);
 	}
 
-	reject(message) {
+	reject(error) {
 		this.close();
-		setTimeout(() => this._sendReject(message), 0);
+		setTimeout(() => this._sendReject(error), 0);
 	}
 
 	close() {

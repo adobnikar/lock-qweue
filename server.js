@@ -95,13 +95,13 @@ class Server {
 				namespace: body.namespace,
 				requestId: requestId,
 			});
-		}, (message) => {
+		}, (error) => {
 			if (socket._isDead) return;
 			socket.emit('lockResponse', {
 				success: false,
 				namespace: body.namespace,
 				requestId: requestId,
-				message: message,
+				message: error.message,
 			});
 		}, body.timeout);
 
