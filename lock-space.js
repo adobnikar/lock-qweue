@@ -8,6 +8,10 @@ const isString = require('lodash.isstring');
 
 let DEFAULT_SPACE = null;
 
+function isPromise(obj) {
+	return Promise.resolve(obj) == obj;
+}
+
 class LockRequest extends LinkedList.Item {
 	// eslint-disable-next-line lines-around-comment
 	/**
@@ -38,7 +42,7 @@ class LockRequest extends LinkedList.Item {
 		this._isFinished = false;
 		if (isInteger(this._timeout)) {
 			this._timeoutId = setTimeout(() => {
-				this.reject(`Lock request timeout of ${this._timeout} miliseconds has expired.`);
+				this.reject(new Error(`Lock request timeout of ${this._timeout} miliseconds has expired.`));
 			}, this._timeout);
 		}
 	}
@@ -56,9 +60,9 @@ class LockRequest extends LinkedList.Item {
 	 *
 	 * @param {string} message
 	 */
-	reject(message) {
+	reject(error) {
 		this.close();
-		if (isFunction(this._reject)) this._reject(message);
+		if (isFunction(this._reject)) this._reject(error);
 	}
 
 	/**
@@ -180,11 +184,55 @@ class LockSpace {
 		if (this.tryLock(request.resources)) {
 			request.resolve();
 		} else if (isInteger(this._maxPending) && (this._queueLength >= this._maxPending)) {
-			request.reject(`Max pending lock requests limit of ${this._maxPending} reached.`);
+			request.reject(new Error(`Max pending lock requests limit of ${this._maxPending} reached.`));
 		} else {
 			this._addToQueue(request);
 		}
 		return request._id;
+	}
+
+	// eslint-disable-next-line class-methods-use-this
+	async _executeFn(fn) {
+		try {
+			if (isFunction(fn)) {
+				let val = fn();
+				while (isPromise(val)) val = await val;
+			} else throw new Error('Parameter "fn" is not a function.');
+			return null;
+		} catch (error) {
+			return error;
+		}
+	}
+
+	/**
+	 * Execute function while resource lock is acquired.
+	 *
+	 * @param {string|string[]} resources One or multiple resources to lock.
+	 * @param {function} fn Function to execute while resource lock is acquired.
+	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
+	 */
+	async lockAsync(resources, fn, timeout = Infinity) {
+		if (!isFunction(fn)) throw new Error('Parameter "fn" is not a function.');
+
+		let presolve = null;
+		let preject = null;
+		let p = new Promise((resolve, reject) => {
+			presolve = resolve;
+			preject = reject;
+		});
+
+		await this.lock(resources, {
+			resolve: presolve,
+			reject: preject,
+			timeout: timeout,
+		});
+		await p;
+
+		let error = await this._executeFn(fn);
+
+		this.release(resources);
+
+		if (error != null) throw error;
 	}
 
 	/**
