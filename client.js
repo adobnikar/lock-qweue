@@ -344,11 +344,16 @@ class Client {
 		});
 		await p;
 
-		await this._executeFn(fn);
+		let error = await this._executeFn(fn);
 
-		await this.release(resources, {
+		// NOTE: No need to await release.
+		this.release(resources, {
 			namespace: namespace,
+		}).catch((error) => {
+			console.error('Release lock failed: ' + error.message);
 		});
+
+		if (error != null) throw error;
 	}
 }
 

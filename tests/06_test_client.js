@@ -19,6 +19,7 @@ setTimeout(async () => {
 		client.lock(['a', 'b'], async () => {
 			console.log('begin lock 1');
 			await sleep(2000);
+			throw new Error('Test error.');
 		}).then(() => console.log('end lock 1')).catch((error) => console.error(error));
 		client.lock(['b', 'c'], async () => {
 			console.log('begin lock 2');
