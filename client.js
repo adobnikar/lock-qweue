@@ -83,12 +83,15 @@ class Client {
 	 * @param {string} [options.name] Client name.
 	 * @param {string} [options.namespace] Locks namespace. If not set a default namespace will be used.
 	 * @param {string} [options.token] Authentication token.
+	 * @param {function} [options.logError] Error logs function.
 	 */
 	constructor(options = {}) {
 		if (options == null) options = {};
 		if (!isString(options.host)) throw new Error('Lock queue client is missing the host parameter.');
 		if (!isString(options.namespace)) options.namespace = null;
 		this._options = options;
+
+		if (!isFunction(this._options.logError)) this._options.logError = null;
 
 		this._requests = new DoubleMap();
 		this._newRequests = new Set();
@@ -104,6 +107,13 @@ class Client {
 		this._io.on('authenticated', this._onAuthenticated.bind(this));
 		this._io.on('connect_error', this._onConnectError.bind(this));
 		this._io.on('unauthorized', this._onUnauthorized.bind(this));
+	}
+
+	// eslint-disable-next-line class-methods-use-this
+	_log(type, message) {
+		if (type === 'error') {
+			if (this._options.logError != null) this._options.logError(message);
+		}
 	}
 
 	_getStatusErrorMsg() {
@@ -211,7 +221,7 @@ class Client {
 			await Promise.all(ps);
 		}
 		if (!this._requests.has(data.namespace, data.requestId)) {
-			console.error('Unresolved lock response: ' + JSON.stringify(data));
+			this._log('error', 'Unresolved lock response: ' + JSON.stringify(data));
 			return;
 		}
 		let request = this._requests.get(data.namespace, data.requestId);
@@ -369,7 +379,7 @@ class Client {
 		this.release(resources, {
 			namespace: namespace,
 		}).catch((error) => {
-			console.error('Release lock failed: ' + error.message);
+			this._log('error', 'Release lock failed: ' + error.message);
 		});
 
 		if ('error' in result) throw result.error;

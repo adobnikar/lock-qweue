@@ -7,6 +7,7 @@ const Joi = require('./joi-ext');
 const SocketIOServer = require('socket.io');
 const LockUniverse = require('./lock-universe');
 
+const isFunction = require('lodash.isfunction');
 const isInteger = require('lodash.isinteger');
 const isString = require('lodash.isstring');
 const find = require('lodash.find');
@@ -31,12 +32,19 @@ class Server {
 	 * @param {integer} [options.port]
 	 * @param {integer} [options.maxPending=Infinity] Max pending lock requests per namespace.
 	 * @param {string} [options.token] Authentication token.
+	 * @param {function} [options.logInfo] Info logs function.
+	 * @param {function} [options.logSuccess] Success logs function.
+	 * @param {function} [options.logError] Error logs function.
 	 */
 	constructor(options = {}) {
 		if (options == null) options = {};
 		if ((options.port != null) && !isInt(options.port)) throw new Error('Lock queue server port must be an integer.');
 		if (!isInt(options.maxPending)) options.maxPending = Infinity;
 		this._options = options;
+
+		if (!isFunction(this._options.logInfo)) this._options.logInfo = null;
+		if (!isFunction(this._options.logSuccess)) this._options.logSuccess = null;
+		if (!isFunction(this._options.logError)) this._options.logError = null;
 
 		this._spaces = new LockUniverse(this._options.maxPending);
 
@@ -48,8 +56,13 @@ class Server {
 
 	// eslint-disable-next-line class-methods-use-this
 	_log(type, message) {
-
-		console.log(message);
+		if (type === 'info') {
+			if (this._options.logInfo != null) this._options.logInfo(message);
+		} else if (type === 'success') {
+			if (this._options.logSuccess != null) this._options.logSuccess(message);
+		} else if (type === 'error') {
+			if (this._options.logError != null) this._options.logError(message);
+		}
 	}
 
 	listen(port) {

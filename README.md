@@ -40,6 +40,9 @@ let server = new Server({
 	port: 3000,
 	token: 'secret', // (optional) Authentication token.
 	maxPending: 100, // (optional) Max pending lock requests per namespace.
+	logInfo: console.log, // (optional) Info logs function.
+	logSuccess: console.log, // (optional) Success logs function.
+	logError: console.error, // (optional) Error logs function.
 });
 ```
 
@@ -77,6 +80,7 @@ let client = new Client({
 	namespace: 'name', // (optional) Namespace that will be used by default. Can be overridden with options.
 	name: 'client1', // (optional) Client name.
 	token: 'secret', // (optional) Authentication token.
+	logError: console.error, // (optional) Error logs function.
 });
 ```
 

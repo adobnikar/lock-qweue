@@ -9,6 +9,7 @@ let client = new Client({
 	// namespace: 'a',
 	name: 'client1',
 	token: 'secret',
+	logError: console.error, // (optional) Error logs function.
 });
 
 setInterval(() => {}, 5000);

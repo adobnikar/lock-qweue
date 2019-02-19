@@ -7,4 +7,5 @@ let client = new Client({
 	namespace: 'name', // (optional)
 	name: 'client1', // (optional)
 	token: 'secret', // (optional)
+	logError: console.error, // (optional) Error logs function.
 });
