@@ -22,18 +22,22 @@ setTimeout(async () => {
 			await sleep(2000);
 			throw new Error('Test error.');
 		}).then(() => console.log('end lock 1')).catch((error) => console.error(error));
+
 		client.lock(['b', 'c'], async () => {
 			console.log('begin lock 2');
 			await sleep(2000);
 		}).then(() => console.log('end lock 2')).catch((error) => console.error(error));
+
 		client.lock(['a'], async () => {
 			console.log('begin lock 3');
 			await sleep(2000);
 		}).then(() => console.log('end lock 3')).catch((error) => console.error(error));
+
 		await client.lock(['a', 'b', 'c'], async () => {
 			console.log('begin lock 4');
 			await sleep(2000);
-		}).then(() => console.log('end lock 4')).catch((error) => console.error(error));
+		});
+		console.log('end lock 4');
 	} catch (error) {
 		console.error(error);
 	}

@@ -10,6 +10,12 @@ function isPromise(obj) {
 	return Promise.resolve(obj) == obj;
 }
 
+async function handlePromise(p) {
+	try {
+		await p;
+	} catch (error) { }
+}
+
 class Request {
 	constructor(client, namespace, resolve = null, reject = null, p) {
 		this._client = client;
@@ -26,10 +32,7 @@ class Request {
 		this.promise = promiseObj.p;
 		this._presolve = promiseObj.resolve;
 		this._preject = promiseObj.reject;
-
-		// Prevent unhandled promises.
-		this.promise.then(() => {});
-		this.promise.catch(() => {});
+		handlePromise(this.promise); // Prevent unhandled promises.
 	}
 
 	async _sendResolve() {
@@ -185,6 +188,7 @@ class Client {
 			presolve = resolve;
 			preject = reject;
 		});
+		handlePromise(p); // Prevent unhandled promises.
 		return {
 			p: p,
 			resolve: presolve,
