@@ -31,6 +31,8 @@ npm i lock-qweue
 
 ### Examples
 
+Start a server:
+
 ```js
 const Server = require('lock-qweue/server');
 
@@ -64,6 +66,8 @@ server.listen(3000);
 - io() → returns underlying Socket.io client
 
 ### Examples
+
+Connect a client:
 
 ```js
 const Client = require('lock-qweue/client');

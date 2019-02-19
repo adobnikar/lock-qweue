@@ -194,13 +194,12 @@ class LockSpace {
 	// eslint-disable-next-line class-methods-use-this
 	async _executeFn(fn) {
 		try {
-			if (isFunction(fn)) {
-				let val = fn();
-				while (isPromise(val)) val = await val;
-			} else throw new Error('Parameter "fn" is not a function.');
-			return null;
+			if (!isFunction(fn)) throw new Error('Parameter "fn" is not a function.');
+			let val = fn();
+			while (isPromise(val)) val = await val;
+			return { val: val };
 		} catch (error) {
-			return error;
+			return { error: error };
 		}
 	}
 
@@ -228,11 +227,12 @@ class LockSpace {
 		});
 		await p;
 
-		let error = await this._executeFn(fn);
+		let result = await this._executeFn(fn);
 
 		this.release(resources);
 
-		if (error != null) throw error;
+		if ('error' in result) throw result.error;
+		return result.val;
 	}
 
 	/**
