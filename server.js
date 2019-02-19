@@ -12,6 +12,16 @@ const isString = require('lodash.isstring');
 const find = require('lodash.find');
 const each = require('lodash.foreach');
 
+function isInt(value) {
+	if (isString(value)) value = parseInt(value);
+	return isInteger(value);
+}
+
+function toInt(value) {
+	if (isString(value)) value = parseInt(value);
+	return value;
+}
+
 class Server {
 	// eslint-disable-next-line lines-around-comment
 	/**
@@ -24,8 +34,8 @@ class Server {
 	 */
 	constructor(options = {}) {
 		if (options == null) options = {};
-		if ((options.port != null) && !isInteger(options.port)) throw new Error('Lock queue server port must be an integer.');
-		if (!isInteger(options.maxPending)) options.maxPending = Infinity;
+		if ((options.port != null) && !isInt(options.port)) throw new Error('Lock queue server port must be an integer.');
+		if (!isInt(options.maxPending)) options.maxPending = Infinity;
 		this._options = options;
 
 		this._spaces = new LockUniverse(this._options.maxPending);
@@ -33,19 +43,20 @@ class Server {
 		this._io = new SocketIOServer();
 		each(this._io.nsps, this._forbidConnections); // Auth middleware.
 		this._io.on('connection', this._onConnection.bind(this));
-		if (isInteger(this._options.port)) this.listen(this._options.port);
+		if (isInt(this._options.port)) this.listen(this._options.port);
 	}
 
 	// eslint-disable-next-line class-methods-use-this
 	_log(type, message) {
+
 		console.log(message);
 	}
 
 	listen(port) {
-		if (!isInteger(port)) throw new Error('Lock queue server port must be an integer.');
+		if (!isInt(port)) throw new Error('Lock queue server port must be an integer.');
 		this._options.port = port;
-		this._io.listen(this._options.port);
-		this._log('info', `Lock qweue server listening on port ${this._options.port}.`)
+		this._io.listen(toInt(this._options.port));
+		this._log('info', `Lock qweue server listening on port ${this._options.port}.`);
 	}
 
 	close() {
@@ -155,7 +166,7 @@ class Server {
 	_onConnection(socket) {
 		socket.auth = false;
 		socket._isDead = false;
-		console.log(`Client with id "${socket.id}" connected from "${socket.handshake.address}".`);
+		this._log('info', `Client with id "${socket.id}" connected from "${socket.handshake.address}".`);
 
 		socket.on('authentication', (data) => {
 			if (isString(data.name)) {
@@ -186,7 +197,7 @@ class Server {
 				this._log('info', `Disconnecting unauthorized socket ${socket.id}`);
 				socket.disconnect('unauthorized');
 			}
-		}, 1000);
+		}, 2000);
 
 		socket.on('disconnect', (reason) => {
 			socket._isDead = true;

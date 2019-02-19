@@ -14,4 +14,4 @@ server.close();
 // or
 
 let server2 = new Server();
-server2.listen(3000);
+server2.listen('3000');
