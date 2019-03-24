@@ -1,6 +1,6 @@
 {
   "name": "lock-qweue",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Inter-process multi-resource locking queue.",
   "main": "index.js",
   "files": [
