@@ -204,15 +204,12 @@ class LockSpace {
 	}
 
 	/**
-	 * Execute function while resource lock is acquired.
+	 * Create a lock request and wait until it is approved.
 	 *
 	 * @param {string|string[]} resources One or multiple resources to lock.
-	 * @param {function} fn Function to execute while resource lock is acquired.
 	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
 	 */
-	async lockAsync(resources, fn, timeout = Infinity) {
-		if (!isFunction(fn)) throw new Error('Parameter "fn" is not a function.');
-
+	async waitLock(resources, timeout = Infinity) {
 		let presolve = null;
 		let preject = null;
 		let p = new Promise((resolve, reject) => {
@@ -226,6 +223,19 @@ class LockSpace {
 			timeout: timeout,
 		});
 		await p;
+	}
+
+	/**
+	 * Execute function while resource lock is acquired.
+	 *
+	 * @param {string|string[]} resources One or multiple resources to lock.
+	 * @param {function} fn Function to execute while resource lock is acquired.
+	 * @param {integer} [timeout=Infinity] Lock request timeout in miliseconds.
+	 */
+	async lockAsync(resources, fn, timeout = Infinity) {
+		if (!isFunction(fn)) throw new Error('Parameter "fn" is not a function.');
+
+		await this.waitLock(resources, timeout);
 
 		let result = await this._executeFn(fn);
 

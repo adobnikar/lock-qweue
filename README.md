@@ -154,7 +154,24 @@ let space = new LockSpace();
 
 await space.lockAsync(['resource A', 'resource B'], async () => {
 	// ... function here
-})
+});
+```
+
+or
+
+```js
+const LockSpace = require('lock-qweue/lock-space');
+
+let space = new LockSpace();
+
+await space.waitLock(['resource A', 'resource B'], 1000); // Lock resources with an optional 1000ms timeout.
+
+// ... Your code here ...
+// NOTE: If needed wrap your code in a try catch statement to make sure the resources get released.
+
+// Do not forget to release the resources.
+space.release(['resource A', 'resource B']);
+
 ```
 
 or
@@ -175,7 +192,7 @@ await space.lock(['resource A', 'resource B'], {
 		console.error(error.message);
 	},
 	timeout: 1000, // (optional) Timeout in milliseconds.
-})
+});
 ```
 
 ## Development

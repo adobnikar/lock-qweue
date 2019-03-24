@@ -17,6 +17,7 @@ public/**
 !public/files/
 
 # Visual Studio Code.
+.history
 .vscode/**
 !.vscode/launch.json.example
 !.vscode/settings.json.example
