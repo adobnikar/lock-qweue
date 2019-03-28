@@ -2,7 +2,7 @@
 
 Inter-process multi-resource locking queue.
 It has a server-client architecture.
-If you are looking for local (single-process) multi-resource locking, check out [async-lock](https://www.npmjs.com/package/async-lock) as it has been out there for longer.
+If you are looking for local (single-process) multi-resource locking, check out [async-lock](https://www.npmjs.com/package/async-lock).
 
 ## Requirements
 
